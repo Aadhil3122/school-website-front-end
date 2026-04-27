@@ -7,16 +7,15 @@ import {
   LogOut,
   UserCog,
   CheckCircle,
-  ChevronDown,
   Save,
   BarChart2,
   ClipboardList,
   Bell,
-  Search,
   AlertCircle,
 } from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────
+const BASE = "http://localhost:5000";
+
 type Term = "1st Term" | "2nd Term" | "3rd Term";
 type Year = "2023" | "2024" | "2025" | "2026";
 type Tab = "enter-marks" | "my-results" | "summary";
@@ -24,11 +23,10 @@ type Tab = "enter-marks" | "my-results" | "summary";
 interface StudentMark {
   indexNo: string;
   name: string;
-  mark: string; // string so input works smoothly
-  grade?: string; // computed
+  mark: string;
+  grade?: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────
 const GRADES_LIST = [
   "1",
   "2",
@@ -199,191 +197,86 @@ function getGradeColor(g: string): string {
           : "bg-red-100 text-red-800";
 }
 
-// Dummy students seeded per grade
-function getSeedStudents(grade: string): StudentMark[] {
-  const names: Record<string, string[]> = {
-    "10": [
-      "Ahmed Rilwan",
-      "Fathima Nishfa",
-      "Mohamed Asif",
-      "Zainab Hana",
-      "Ibrahim Ismail",
-      "Mariam Safa",
-    ],
-    "11": [
-      "Muhammed Faris",
-      "Aminath Rifa",
-      "Hassan Nazeer",
-      "Yusuf Ameer",
-      "Raifa Ahamed",
-      "Nusra Banu",
-    ],
-    "12": [
-      "Abdulla Sajid",
-      "Shafna Hasna",
-      "Jaffar Insaf",
-      "Rameeza Noor",
-      "Bilal Rifan",
-      "Hana Iqra",
-    ],
-    "13": [
-      "Siddiq Rafiq",
-      "Nusaiba Zain",
-      "Raahil Amaan",
-      "Hafsa Riyaz",
-      "Saad Akhtar",
-      "Maryam Ilham",
-    ],
-  };
-  const list = names[grade] || [
-    "Student A",
-    "Student B",
-    "Student C",
-    "Student D",
-  ];
-  return list.map((name, i) => ({
-    indexNo: `2025${grade.padStart(2, "0")}${String(i + 1).padStart(2, "0")}`,
-    name,
-    mark: "",
-    grade: undefined,
-  }));
-}
-
-// ─── MAIN COMPONENT ────────────────────────────────────────
-export default function staff() {
+export default function StaffPortal() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [tab, setTab] = useState<Tab>("enter-marks");
 
-  // Staff info (in real app, from auth context)
   const staffName = "Mr. Abdul Hameed";
   const staffSubject = "Mathematics";
   const staffGrade = "10";
 
-  // Filter state
   const [selGrade, setSelGrade] = useState(staffGrade);
   const [selSubject, setSelSubject] = useState(staffSubject);
   const [selTerm, setSelTerm] = useState<Term>("1st Term");
   const [selYear, setSelYear] = useState<Year>("2025");
 
-  // Marks table
-  const [students, setStudents] = useState<StudentMark[]>(
-    getSeedStudents(staffGrade),
-  );
+  const [students, setStudents] = useState<StudentMark[]>([]);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [savedMarks, setSavedMarks] = useState<Record<string, any>>({});
 
-  const getMarksKey = (
-    grade: string,
-    subject: string,
-    term: Term,
-    year: Year,
-  ) => `${grade}|${subject}|${term}|${year}`;
-
-  const getSavedStudentRoster = (grade: string) => {
-    if (typeof window === "undefined") return getSeedStudents(grade);
-    const stored = localStorage.getItem("school-students");
-    if (!stored) return getSeedStudents(grade);
-
-    try {
-      const parsed = JSON.parse(stored);
-      if (!Array.isArray(parsed)) return getSeedStudents(grade);
-
-      const filtered = parsed
-        .filter((item: any) => String(item.grade) === grade)
-        .map((item: any) => ({
-          indexNo: item.indexNo,
-          name: item.name,
-          mark: "",
-          grade: undefined,
-        }));
-
-      return filtered.length > 0 ? filtered : getSeedStudents(grade);
-    } catch {
-      return getSeedStudents(grade);
-    }
-  };
-
-  const mergeSavedMarks = (
-    roster: StudentMark[],
-    grade: string,
-    subject: string,
-    term: Term,
-    year: Year,
-    marksObj: Record<string, any>,
-  ) => {
-    const current = marksObj[getMarksKey(grade, subject, term, year)] || [];
-    return roster.map((student) => {
-      const found = current.find(
-        (item: any) => item.indexNo === student.indexNo,
-      );
-      return found
-        ? {
-            ...student,
-            mark: String(found.mark),
-            grade: found.grade,
-          }
-        : { ...student, mark: "", grade: undefined };
-    });
-  };
-
+  // ── Auth ──
   useEffect(() => {
-    const role =
-      typeof window !== "undefined" ? localStorage.getItem("role") : null;
+    const role = localStorage.getItem("role");
     if (role !== "staff") {
       router.replace("/login");
       return;
     }
-
     setAuthorized(true);
-    const storedMarks = localStorage.getItem("school-marks");
-    const marksObj = storedMarks ? JSON.parse(storedMarks) : {};
-    setSavedMarks(marksObj);
-    setStudents(
-      mergeSavedMarks(
-        getSavedStudentRoster(staffGrade),
-        staffGrade,
-        staffSubject,
-        selTerm,
-        selYear,
-        marksObj,
-      ),
-    );
   }, [router]);
 
+  // ── Load students + marks when filter changes ──
   useEffect(() => {
     if (!authorized) return;
+    loadStudentsAndMarks();
+  }, [authorized, selGrade, selSubject, selTerm, selYear]);
 
-    setStudents((current) =>
-      mergeSavedMarks(
-        getSavedStudentRoster(selGrade),
-        selGrade,
-        selSubject,
-        selTerm,
-        selYear,
-        savedMarks,
-      ),
-    );
-    setSaved(false);
-  }, [authorized, selGrade, selSubject, selTerm, selYear, savedMarks]);
+  const loadStudentsAndMarks = async () => {
+    try {
+      // Get students for grade
+      const res = await fetch(`${BASE}/api/students/grade/${selGrade}`);
+      const data = await res.json();
+      const roster: StudentMark[] = Array.isArray(data)
+        ? data.map((s: any) => ({
+            indexNo: s.indexNo,
+            name: s.name,
+            mark: "",
+            grade: undefined,
+          }))
+        : [];
 
-  if (!authorized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f0f4f9] text-sm text-gray-500">
-        Checking access…
-      </div>
-    );
-  }
+      // Get saved marks
+      const mRes = await fetch(
+        `${BASE}/api/marks?grade=${selGrade}&subject=${encodeURIComponent(selSubject)}&term=${encodeURIComponent(selTerm)}&year=${selYear}`,
+      );
+      let savedMarks: any[] = [];
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        savedMarks = mData.marks || [];
+      }
 
-  // When grade changes, reload student list
+      // Merge
+      const merged = roster.map((s) => {
+        const found = savedMarks.find((m: any) => m.indexNo === s.indexNo);
+        return found
+          ? { ...s, mark: String(found.mark), grade: found.grade }
+          : s;
+      });
+
+      setStudents(merged);
+      setSaved(false);
+    } catch (err) {
+      console.error("loadStudentsAndMarks error:", err);
+      setStudents([]);
+    }
+  };
+
   const handleGradeChange = (g: string) => {
     setSelGrade(g);
     setSelSubject(SUBJECTS_BY_GRADE[g]?.[0] || "");
     setSaved(false);
   };
 
-  // Update a mark
   const updateMark = (indexNo: string, value: string) => {
     const num = parseInt(value);
     setStudents((prev) =>
@@ -401,7 +294,6 @@ export default function staff() {
     setSaved(false);
   };
 
-  // Save marks (calls MongoDB API)
   const saveMarks = async () => {
     setLoading(true);
     const payload = {
@@ -416,28 +308,15 @@ export default function staff() {
         grade: s.grade || "F",
       })),
     };
-
-    const storage =
-      typeof window !== "undefined"
-        ? localStorage.getItem("school-marks")
-        : null;
-    const marksObj = storage ? JSON.parse(storage) : {};
-    marksObj[getMarksKey(selGrade, selSubject, selTerm, selYear)] =
-      payload.marks;
-    localStorage.setItem("school-marks", JSON.stringify(marksObj));
-    setSavedMarks(marksObj);
-
     try {
-      const res = await fetch("/api/marks/save", {
+      const res = await fetch(`${BASE}/api/marks/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        setSaved(true);
-      }
-    } catch {
-      setSaved(true);
+      if (res.ok) setSaved(true);
+    } catch (err) {
+      console.error("saveMarks error:", err);
     } finally {
       setLoading(false);
     }
@@ -453,6 +332,11 @@ export default function staff() {
         )
       : 0;
   const passCount = students.filter((s) => parseInt(s.mark) >= 35).length;
+
+  const gradeDistribution = ["A", "B", "C", "S", "F"].map((g) => ({
+    g,
+    count: students.filter((s) => s.grade === g).length,
+  }));
 
   const navItems = [
     {
@@ -472,10 +356,17 @@ export default function staff() {
     },
   ];
 
+  if (!authorized)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f0f4f9] text-sm text-gray-500">
+        Checking access…
+      </div>
+    );
+
   return (
-    <div className="flex min-h-screen bg-[#f0f4f9] font-sans overflow-hidden">
-      {/* ── SIDEBAR ── */}
-      <aside className="w-60 bg-linear-to-b from-[#0a2a5e] to-[#1a4fa0] text-white flex flex-col shadow-2xl fixed h-full z-20">
+    <div className="flex min-h-screen bg-[#f0f4f9] font-sans">
+      {/* SIDEBAR */}
+      <aside className="w-60 bg-gradient-to-b from-[#0a2a5e] to-[#1a4fa0] text-white flex flex-col shadow-2xl fixed h-full z-20">
         <div className="px-6 py-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -524,9 +415,9 @@ export default function staff() {
         </div>
       </aside>
 
-      {/* ── MAIN ── */}
+      {/* MAIN */}
       <main className="ml-60 flex-1 flex flex-col min-h-screen overflow-y-auto">
-        {/* Top bar */}
+        {/* Header */}
         <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
           <div>
             <h1 className="text-xl font-extrabold text-gray-800">
@@ -539,9 +430,7 @@ export default function staff() {
             <p className="text-xs text-gray-400">Staff Portal — Al Akeel MMV</p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative p-2 hover:bg-gray-100 rounded-full transition">
-              <Bell className="w-5 h-5 text-gray-500" />
-            </button>
+            <Bell className="w-5 h-5 text-gray-500" />
             <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center text-white font-bold text-sm">
               {staffName
                 .split(" ")
@@ -553,10 +442,10 @@ export default function staff() {
         </header>
 
         <div className="flex-1 p-8">
-          {/* ── ENTER MARKS TAB ── */}
+          {/* ENTER MARKS TAB */}
           {tab === "enter-marks" && (
             <div className="space-y-6">
-              {/* Filter row */}
+              {/* Filter */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
                   Select Class
@@ -629,7 +518,7 @@ export default function staff() {
                 </div>
               </div>
 
-              {/* Progress mini stats */}
+              {/* Mini stats */}
               <div className="grid grid-cols-3 gap-4">
                 {[
                   {
@@ -692,6 +581,16 @@ export default function staff() {
                     </tr>
                   </thead>
                   <tbody>
+                    {students.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="text-center py-8 text-gray-400 text-sm"
+                        >
+                          No students found for Grade {selGrade}.
+                        </td>
+                      </tr>
+                    )}
                     {students.map((s, i) => (
                       <tr
                         key={s.indexNo}
@@ -734,17 +633,17 @@ export default function staff() {
                 </table>
 
                 <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-                  {filledCount < students.length && (
+                  {filledCount < students.length && students.length > 0 ? (
                     <span className="flex items-center gap-1.5 text-amber-600 text-xs font-semibold">
                       <AlertCircle className="w-4 h-4" />
-                      {students.length - filledCount} student(s) still missing
-                      marks
+                      {students.length - filledCount} student(s) missing marks
                     </span>
-                  )}
-                  {filledCount === students.length && (
+                  ) : filledCount === students.length && students.length > 0 ? (
                     <span className="flex items-center gap-1.5 text-green-600 text-xs font-semibold">
                       <CheckCircle className="w-4 h-4" /> All marks entered
                     </span>
+                  ) : (
+                    <span />
                   )}
                   <button
                     onClick={saveMarks}
@@ -757,7 +656,7 @@ export default function staff() {
                 </div>
               </div>
 
-              {/* Grade scale reference */}
+              {/* Grade scale */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
                   Sri Lanka Grading Scale
@@ -803,7 +702,7 @@ export default function staff() {
             </div>
           )}
 
-          {/* ── MY RESULTS TAB ── */}
+          {/* MY RESULTS TAB */}
           {tab === "my-results" && (
             <div className="space-y-4">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -863,109 +762,68 @@ export default function staff() {
             </div>
           )}
 
-          {/* ── SUMMARY TAB ── */}
-          {tab === "summary" &&
-            (() => {
-              const summaryFilledCount = students.filter(
-                (s) => s.mark !== "",
-              ).length;
-              const summaryPassCount = students.filter(
-                (s) => parseInt(s.mark) >= 35,
-              ).length;
-              const summaryAvgMark =
-                summaryFilledCount > 0
-                  ? Math.round(
-                      students
-                        .filter((s) => s.mark !== "")
-                        .reduce((a, s) => a + (parseInt(s.mark) || 0), 0) /
-                        summaryFilledCount,
-                    )
-                  : 0;
-              const gradeDistribution = [
-                {
-                  g: "A",
-                  count: students.filter((s) => s.grade === "A").length,
-                },
-                {
-                  g: "B",
-                  count: students.filter((s) => s.grade === "B").length,
-                },
-                {
-                  g: "C",
-                  count: students.filter((s) => s.grade === "C").length,
-                },
-                {
-                  g: "S",
-                  count: students.filter((s) => s.grade === "S").length,
-                },
-                {
-                  g: "F",
-                  count: students.filter((s) => s.grade === "F").length,
-                },
-              ];
-              return (
-                <div className="space-y-4">
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h2 className="font-extrabold text-gray-700 mb-1">
-                      Class Performance Summary
-                    </h2>
-                    <p className="text-sm text-gray-400 mb-6">
-                      Grade {selGrade} — {selSubject}
+          {/* SUMMARY TAB */}
+          {tab === "summary" && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="font-extrabold text-gray-700 mb-1">
+                  Class Performance Summary
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  Grade {selGrade} — {selSubject}
+                </p>
+
+                <div className="space-y-3">
+                  {gradeDistribution.map((row) => (
+                    <div key={row.g} className="flex items-center gap-4">
+                      <span
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold ${getGradeColor(row.g)}`}
+                      >
+                        {row.g}
+                      </span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                        <div
+                          className="h-3 rounded-full bg-blue-500 transition-all duration-500"
+                          style={{
+                            width:
+                              students.length > 0
+                                ? `${(row.count / students.length) * 100}%`
+                                : "0%",
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold text-gray-600 w-6">
+                        {row.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-extrabold text-gray-800">
+                      {students.length}
                     </p>
-
-                    {/* Grade distribution */}
-                    <div className="space-y-3">
-                      {gradeDistribution.map((row) => (
-                        <div key={row.g} className="flex items-center gap-4">
-                          <span
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold ${getGradeColor(row.g)}`}
-                          >
-                            {row.g}
-                          </span>
-                          <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-                            <div
-                              className="h-3 rounded-full bg-blue-500 transition-all duration-500"
-                              style={{
-                                width:
-                                  students.length > 0
-                                    ? `${(row.count / students.length) * 100}%`
-                                    : "0%",
-                              }}
-                            />
-                          </div>
-                          <span className="text-sm font-bold text-gray-600 w-6">
-                            {row.count}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-2xl font-extrabold text-gray-800">
-                          {students.length}
-                        </p>
-                        <p className="text-xs text-gray-400">Total Students</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-extrabold text-green-700">
-                          {summaryAvgMark > 0 ? `${summaryAvgMark}%` : "—"}
-                        </p>
-                        <p className="text-xs text-gray-400">Class Average</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-extrabold text-blue-700">
-                          {summaryFilledCount > 0
-                            ? `${Math.round((summaryPassCount / summaryFilledCount) * 100)}%`
-                            : "—"}
-                        </p>
-                        <p className="text-xs text-gray-400">Pass Rate</p>
-                      </div>
-                    </div>
+                    <p className="text-xs text-gray-400">Total Students</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-extrabold text-green-700">
+                      {avgMark > 0 ? `${avgMark}%` : "—"}
+                    </p>
+                    <p className="text-xs text-gray-400">Class Average</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-extrabold text-blue-700">
+                      {filledCount > 0
+                        ? `${Math.round((passCount / filledCount) * 100)}%`
+                        : "—"}
+                    </p>
+                    <p className="text-xs text-gray-400">Pass Rate</p>
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>

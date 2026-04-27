@@ -5,38 +5,36 @@ import { useRouter } from "next/navigation";
 import {
   Users,
   BookOpen,
-  BarChart2,
-  Settings,
   LogOut,
-  PlusCircle,
+  Plus,
   Trash2,
-  Edit2,
+  Save,
+  BarChart2,
   ShieldCheck,
-  ChevronDown,
-  GraduationCap,
-  UserCheck,
   Bell,
-  Search,
+  Pencil,
   X,
   Check,
+  Newspaper,
 } from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────
-type Student = {
-  id: string;
-  name: string;
+type Tab = "students" | "marks" | "reports" | "news";
+
+interface Student {
+  _id: string;
   indexNo: string;
-  grade: string;
-  section: string;
-};
-type Staff = {
-  id: string;
   name: string;
-  staffId: string;
-  subject: string;
   grade: string;
-};
-type Tab = "dashboard" | "students" | "staff" | "results" | "settings";
+}
+
+interface NewsItem {
+  _id: string;
+  title: string;
+  date: string;
+  summary: string;
+  points: string[];
+  image: string;
+}
 
 const GRADES = [
   "1",
@@ -53,6 +51,8 @@ const GRADES = [
   "12",
   "13",
 ];
+const TERMS = ["1st Term", "2nd Term", "3rd Term"];
+const YEARS = ["2023", "2024", "2025", "2026"];
 const SUBJECTS_BY_GRADE: Record<string, string[]> = {
   "1": ["Sinhala", "Mathematics", "English", "Islam", "Tamil", "Art"],
   "2": ["Sinhala", "Mathematics", "English", "Islam", "Tamil", "Art"],
@@ -185,301 +185,362 @@ const SUBJECTS_BY_GRADE: Record<string, string[]> = {
   ],
 };
 
-// ─── Dummy seed data ───────────────────────────────────────
-const SEED_STUDENTS: Student[] = [
-  {
-    id: "s1",
-    name: "Ahmed Rilwan",
-    indexNo: "2025001",
-    grade: "10",
-    section: "A",
-  },
-  {
-    id: "s2",
-    name: "Fathima Nishfa",
-    indexNo: "2025002",
-    grade: "10",
-    section: "A",
-  },
-  {
-    id: "s3",
-    name: "Mohamed Insaf",
-    indexNo: "2025003",
-    grade: "11",
-    section: "B",
-  },
-  {
-    id: "s4",
-    name: "Zainab Hasna",
-    indexNo: "2025004",
-    grade: "12",
-    section: "A",
-  },
-];
-const SEED_STAFF: Staff[] = [
-  {
-    id: "t1",
-    name: "Mr. Abdul Hameed",
-    staffId: "ST001",
-    subject: "Mathematics",
-    grade: "10",
-  },
-  {
-    id: "t2",
-    name: "Ms. Fathima Asra",
-    staffId: "ST002",
-    subject: "Science",
-    grade: "11",
-  },
-  {
-    id: "t3",
-    name: "Mr. Mohamed Niyaz",
-    staffId: "ST003",
-    subject: "English",
-    grade: "12",
-  },
-];
-
-// ─── Modal helper ──────────────────────────────────────────
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800 text-lg">{title}</h3>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-full hover:bg-gray-100 transition"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
+function getLetterGrade(mark: number): string {
+  if (mark >= 75) return "A";
+  if (mark >= 65) return "B";
+  if (mark >= 55) return "C";
+  if (mark >= 35) return "S";
+  return "F";
 }
 
-// ─── Stat Card ─────────────────────────────────────────────
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  color: string;
-}) {
-  return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-      <div
-        className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}
-      >
-        {icon}
-      </div>
-      <div>
-        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">
-          {label}
-        </p>
-        <p className="text-2xl font-extrabold text-gray-800">{value}</p>
-      </div>
-    </div>
-  );
-}
+const BASE = "http://localhost:5000";
 
-// ─── MAIN COMPONENT ────────────────────────────────────────
-export default function admin() {
+export default function AdminPortal() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
+  const [tab, setTab] = useState<Tab>("students");
 
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [students, setStudents] = useState<Student[]>(SEED_STUDENTS);
-  const [staff, setStaff] = useState<Staff[]>(SEED_STAFF);
-  const [search, setSearch] = useState("");
-
-  // modals
-  const [addStudentOpen, setAddStudentOpen] = useState(false);
-  const [addStaffOpen, setAddStaffOpen] = useState(false);
-  const [editStudent, setEditStudent] = useState<Student | null>(null);
-  const [editStaff, setEditStaff] = useState<Staff | null>(null);
-
-  // forms
-  const blankStudent: Student = {
-    id: "",
-    name: "",
+  // Students state
+  const [students, setStudents] = useState<Student[]>([]);
+  const [newStudent, setNewStudent] = useState({
     indexNo: "",
-    grade: "1",
-    section: "A",
-  };
-  const blankStaff: Staff = {
-    id: "",
     name: "",
-    staffId: "",
-    subject: "",
     grade: "1",
-  };
-  const [studentForm, setStudentForm] = useState<Student>(blankStudent);
-  const [staffForm, setStaffForm] = useState<Staff>(blankStaff);
+  });
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({
+    indexNo: "",
+    name: "",
+    grade: "1",
+  });
+  const [stuMsg, setStuMsg] = useState("");
 
+  // Marks state
+  const [selGrade, setSelGrade] = useState("10");
+  const [selSubject, setSelSubject] = useState("Sinhala");
+  const [selTerm, setSelTerm] = useState("1st Term");
+  const [selYear, setSelYear] = useState("2025");
+  const [markRows, setMarkRows] = useState<
+    { indexNo: string; name: string; mark: string; grade: string }[]
+  >([]);
+  const [markMsg, setMarkMsg] = useState("");
+
+  // Report state
+  const [repIndex, setRepIndex] = useState("");
+  const [repGrade, setRepGrade] = useState("10");
+  const [repTerm, setRepTerm] = useState("1st Term");
+  const [repYear, setRepYear] = useState("2025");
+  const [report, setReport] = useState<any>(null);
+  const [repErr, setRepErr] = useState("");
+
+  // News state
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [newsForm, setNewsForm] = useState({
+    title: "",
+    date: "",
+    summary: "",
+    image: "",
+    points: "",
+  });
+  const [newsEditId, setNewsEditId] = useState<string | null>(null);
+  const [newsMsg, setNewsMsg] = useState("");
+  const [showNewsForm, setShowNewsForm] = useState(false);
+
+  // Auth check
   useEffect(() => {
-    const role =
-      typeof window !== "undefined" ? localStorage.getItem("role") : null;
+    const role = localStorage.getItem("role");
     if (role !== "admin") {
       router.replace("/login");
       return;
     }
-
     setAuthorized(true);
-    const storedStudents = localStorage.getItem("school-students");
-    const storedStaff = localStorage.getItem("school-staff");
-
-    if (storedStudents) {
-      try {
-        setStudents(JSON.parse(storedStudents));
-      } catch {
-        setStudents(SEED_STUDENTS);
-      }
-    }
-
-    if (storedStaff) {
-      try {
-        setStaff(JSON.parse(storedStaff));
-      } catch {
-        setStaff(SEED_STAFF);
-      }
-    }
   }, [router]);
 
   useEffect(() => {
     if (!authorized) return;
-    localStorage.setItem("school-students", JSON.stringify(students));
-  }, [students, authorized]);
-
+    fetchStudents();
+  }, [authorized]);
   useEffect(() => {
     if (!authorized) return;
-    localStorage.setItem("school-staff", JSON.stringify(staff));
-  }, [staff, authorized]);
+    loadMarks();
+  }, [authorized, selGrade, selSubject, selTerm, selYear]);
+  useEffect(() => {
+    if (!authorized) return;
+    fetchNews();
+  }, [authorized]);
 
-  // ── Student CRUD ──
-  const saveStudent = () => {
-    if (!studentForm.name || !studentForm.indexNo) return;
-    if (studentForm.id) {
-      setStudents((s) =>
-        s.map((x) => (x.id === studentForm.id ? studentForm : x)),
+  // ── Students ──
+  const fetchStudents = async () => {
+    try {
+      const res = await fetch(`${BASE}/api/students`);
+      const data = await res.json();
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const addStudent = async () => {
+    if (!newStudent.indexNo.trim() || !newStudent.name.trim()) {
+      setStuMsg("❌ Please fill Index No and Name");
+      setTimeout(() => setStuMsg(""), 3000);
+      return;
+    }
+    try {
+      const res = await fetch(`${BASE}/api/students`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newStudent),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStuMsg("✅ Student added!");
+        setNewStudent({ indexNo: "", name: "", grade: "1" });
+        fetchStudents();
+      } else {
+        setStuMsg(`❌ ${data.message}`);
+      }
+    } catch {
+      setStuMsg("❌ Cannot connect to server");
+    }
+    setTimeout(() => setStuMsg(""), 3000);
+  };
+
+  const deleteStudent = async (id: string) => {
+    try {
+      await fetch(`${BASE}/api/students/${id}`, { method: "DELETE" });
+      fetchStudents();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const startEdit = (s: Student) => {
+    setEditId(s._id);
+    setEditData({ indexNo: s.indexNo, name: s.name, grade: s.grade });
+  };
+
+  const saveEdit = async () => {
+    try {
+      await fetch(`${BASE}/api/students/${editId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editData),
+      });
+      setEditId(null);
+      fetchStudents();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ── Marks ──
+  const loadMarks = async () => {
+    try {
+      const res = await fetch(`${BASE}/api/students/grade/${selGrade}`);
+      const gradeStudents: Student[] = await res.json();
+      const mRes = await fetch(
+        `${BASE}/api/marks?grade=${selGrade}&subject=${encodeURIComponent(selSubject)}&term=${encodeURIComponent(selTerm)}&year=${selYear}`,
       );
-    } else {
-      setStudents((s) => [...s, { ...studentForm, id: Date.now().toString() }]);
+      let savedMarks: any[] = [];
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        savedMarks = mData.marks || [];
+      }
+      const rows = Array.isArray(gradeStudents)
+        ? gradeStudents.map((s) => {
+            const found = savedMarks.find((m: any) => m.indexNo === s.indexNo);
+            return {
+              indexNo: s.indexNo,
+              name: s.name,
+              mark: found ? String(found.mark) : "",
+              grade: found ? found.grade : "",
+            };
+          })
+        : [];
+      setMarkRows(rows);
+    } catch (err) {
+      console.error(err);
     }
-    setAddStudentOpen(false);
-    setEditStudent(null);
-    setStudentForm(blankStudent);
   };
-  const deleteStudent = (id: string) =>
-    setStudents((s) => s.filter((x) => x.id !== id));
 
-  // ── Staff CRUD ──
-  const saveStaff = () => {
-    if (!staffForm.name || !staffForm.staffId) return;
-    if (staffForm.id) {
-      setStaff((s) => s.map((x) => (x.id === staffForm.id ? staffForm : x)));
-    } else {
-      setStaff((s) => [...s, { ...staffForm, id: Date.now().toString() }]);
+  const updateMark = (indexNo: string, value: string) => {
+    const num = parseInt(value);
+    setMarkRows((prev) =>
+      prev.map((r) =>
+        r.indexNo === indexNo
+          ? {
+              ...r,
+              mark: value,
+              grade: value === "" ? "" : getLetterGrade(isNaN(num) ? 0 : num),
+            }
+          : r,
+      ),
+    );
+  };
+
+  const saveMarks = async () => {
+    try {
+      const payload = {
+        grade: selGrade,
+        subject: selSubject,
+        term: selTerm,
+        year: selYear,
+        marks: markRows.map((r) => ({
+          indexNo: r.indexNo,
+          name: r.name,
+          mark: parseInt(r.mark) || 0,
+          grade: r.grade || "F",
+        })),
+      };
+      const res = await fetch(`${BASE}/api/marks/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setMarkMsg(res.ok ? "✅ Marks saved!" : "❌ Failed to save marks");
+    } catch {
+      setMarkMsg("❌ Cannot connect to server");
     }
-    setAddStaffOpen(false);
-    setEditStaff(null);
-    setStaffForm(blankStaff);
-  };
-  const deleteStaff = (id: string) =>
-    setStaff((s) => s.filter((x) => x.id !== id));
-
-  const openEditStudent = (st: Student) => {
-    setStudentForm(st);
-    setEditStudent(st);
-    setAddStudentOpen(true);
-  };
-  const openEditStaff = (st: Staff) => {
-    setStaffForm(st);
-    setEditStaff(st);
-    setAddStaffOpen(true);
+    setTimeout(() => setMarkMsg(""), 3000);
   };
 
-  const normalizedSearch = search.toLowerCase();
-
-  const filteredStudents = students.filter(
-    (s) =>
-      s.name.toLowerCase().includes(normalizedSearch) ||
-      s.indexNo.toLowerCase().includes(normalizedSearch) ||
-      s.grade.toLowerCase().includes(normalizedSearch) ||
-      s.section.toLowerCase().includes(normalizedSearch),
-  );
-  const filteredStaff = staff.filter(
-    (s) =>
-      s.name.toLowerCase().includes(normalizedSearch) ||
-      s.staffId.toLowerCase().includes(normalizedSearch) ||
-      s.subject.toLowerCase().includes(normalizedSearch) ||
-      s.grade.toLowerCase().includes(normalizedSearch),
-  );
-
-  useEffect(() => {
-    const role =
-      typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    if (role !== "admin") {
-      router.replace("/login");
-    } else {
-      setAuthorized(true);
+  // ── Reports ──
+  const fetchReport = async () => {
+    setRepErr("");
+    setReport(null);
+    try {
+      const res = await fetch(
+        `${BASE}/api/marks/report?indexNo=${repIndex}&grade=${repGrade}&term=${encodeURIComponent(repTerm)}&year=${repYear}`,
+      );
+      if (res.ok) {
+        setReport(await res.json());
+      } else {
+        setRepErr("No report found for this student.");
+      }
+    } catch {
+      setRepErr("❌ Cannot connect to server.");
     }
-  }, [router]);
+  };
 
-  if (!authorized) {
+  // ── News ──
+  const fetchNews = async () => {
+    try {
+      const res = await fetch(`${BASE}/api/news`);
+      const data = await res.json();
+      setNewsList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const saveNews = async () => {
+    if (!newsForm.title.trim() || !newsForm.summary.trim()) {
+      setNewsMsg("❌ Title and Summary are required");
+      setTimeout(() => setNewsMsg(""), 3000);
+      return;
+    }
+    try {
+      const payload = {
+        ...newsForm,
+        points: newsForm.points
+          .split("\n")
+          .map((p) => p.trim())
+          .filter((p) => p !== ""),
+      };
+      const url = newsEditId
+        ? `${BASE}/api/news/${newsEditId}`
+        : `${BASE}/api/news`;
+      const method = newsEditId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setNewsMsg(newsEditId ? "✅ News updated!" : "✅ News added!");
+        setNewsForm({
+          title: "",
+          date: "",
+          summary: "",
+          image: "",
+          points: "",
+        });
+        setNewsEditId(null);
+        setShowNewsForm(false);
+        fetchNews();
+      } else {
+        setNewsMsg("❌ Failed to save news");
+      }
+    } catch {
+      setNewsMsg("❌ Cannot connect to server");
+    }
+    setTimeout(() => setNewsMsg(""), 3000);
+  };
+
+  const editNews = (n: NewsItem) => {
+    setNewsEditId(n._id);
+    setNewsForm({
+      title: n.title,
+      date: n.date,
+      summary: n.summary,
+      image: n.image,
+      points: n.points.join("\n"),
+    });
+    setShowNewsForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const deleteNews = async (id: string) => {
+    try {
+      await fetch(`${BASE}/api/news/${id}`, { method: "DELETE" });
+      fetchNews();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (!authorized)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f4f6fa] text-sm text-gray-500">
+      <div className="min-h-screen flex items-center justify-center text-gray-500">
         Checking access…
       </div>
     );
-  }
 
-  // ── Sidebar nav items ──
-  const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  const navItems = [
     {
-      id: "dashboard",
-      label: "Dashboard",
+      id: "students" as Tab,
+      label: "Students",
+      icon: <Users className="w-5 h-5" />,
+    },
+    {
+      id: "marks" as Tab,
+      label: "Enter Marks",
+      icon: <BookOpen className="w-5 h-5" />,
+    },
+    {
+      id: "reports" as Tab,
+      label: "Reports",
       icon: <BarChart2 className="w-5 h-5" />,
     },
     {
-      id: "students",
-      label: "Students",
-      icon: <GraduationCap className="w-5 h-5" />,
-    },
-    { id: "staff", label: "Staff", icon: <UserCheck className="w-5 h-5" /> },
-    { id: "results", label: "Results", icon: <BookOpen className="w-5 h-5" /> },
-    {
-      id: "settings",
-      label: "Settings",
-      icon: <Settings className="w-5 h-5" />,
+      id: "news" as Tab,
+      label: "News",
+      icon: <Newspaper className="w-5 h-5" />,
     },
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#f4f6fa] font-sans overflow-hidden">
-      {/* ── SIDEBAR ── */}
-      <aside className="w-64 bg-linear-to-b from-[#012d12] to-[#024d20] text-white flex flex-col shadow-2xl fixed h-full z-20">
+    <div className="flex min-h-screen bg-[#f0f4f9] font-sans">
+      {/* SIDEBAR */}
+      <aside className="w-60 bg-gradient-to-b from-[#013512] to-[#026a25] text-white flex flex-col shadow-2xl fixed h-full z-20">
         <div className="px-6 py-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-green-300" />
+              <ShieldCheck className="w-5 h-5 text-green-200" />
             </div>
             <div>
-              <p className="font-extrabold text-sm">Admin Portal</p>
+              <p className="font-extrabold text-sm">Admin Panel</p>
               <p className="text-xs text-green-300">Al Akeel MMV</p>
             </div>
           </div>
@@ -502,7 +563,7 @@ export default function admin() {
           ))}
         </nav>
 
-        <div className="px-4 py-6 border-t border-white/10">
+        <div className="px-4 py-5 border-t border-white/10">
           <button
             onClick={() => {
               localStorage.removeItem("role");
@@ -515,509 +576,636 @@ export default function admin() {
         </div>
       </aside>
 
-      {/* ── MAIN ── */}
-      <main className="ml-64 flex-1 flex flex-col min-h-screen overflow-y-auto">
-        {/* Top bar */}
+      {/* MAIN */}
+      <main className="ml-60 flex-1 flex flex-col min-h-screen overflow-y-auto">
+        {/* Header */}
         <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
           <div>
-            <h1 className="text-xl font-extrabold text-gray-800 capitalize">
-              {tab}
+            <h1 className="text-xl font-extrabold text-gray-800">
+              {tab === "students"
+                ? "Manage Students"
+                : tab === "marks"
+                  ? "Enter Marks"
+                  : tab === "reports"
+                    ? "Student Reports"
+                    : "Manage News"}
             </h1>
-            <p className="text-xs text-gray-400">
-              Al Akeel MMV — Admin Control Panel
-            </p>
+            <p className="text-xs text-gray-400">Admin Portal — Al Akeel MMV</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search students, index, staff or grade…"
-                className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 w-56"
-              />
-            </div>
-            <button className="relative p-2 hover:bg-gray-100 rounded-full transition">
-              <Bell className="w-5 h-5 text-gray-500" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <div className="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-              A
-            </div>
-          </div>
+          <Bell className="w-5 h-5 text-gray-500" />
         </header>
 
-        <div className="flex-1 p-8">
-          {/* ── DASHBOARD TAB ── */}
-          {tab === "dashboard" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                  icon={<GraduationCap className="w-6 h-6 text-green-700" />}
-                  label="Total Students"
-                  value={students.length}
-                  color="bg-green-50"
-                />
-                <StatCard
-                  icon={<UserCheck className="w-6 h-6 text-blue-700" />}
-                  label="Total Staff"
-                  value={staff.length}
-                  color="bg-blue-50"
-                />
-                <StatCard
-                  icon={<BookOpen className="w-6 h-6 text-yellow-700" />}
-                  label="Grades"
-                  value="1 – 13"
-                  color="bg-yellow-50"
-                />
-                <StatCard
-                  icon={<BarChart2 className="w-6 h-6 text-purple-700" />}
-                  label="Terms"
-                  value="3 / Year"
-                  color="bg-purple-50"
-                />
-              </div>
-
-              <div className="grid lg:grid-cols-2 gap-6">
-                {/* Recent Students */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                  <h2 className="font-extrabold text-gray-700 mb-4 flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-green-600" /> Recent
-                    Students
-                  </h2>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                        <th className="pb-2">Name</th>
-                        <th className="pb-2">Index</th>
-                        <th className="pb-2">Grade</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.slice(0, 4).map((s) => (
-                        <tr
-                          key={s.id}
-                          className="border-b border-gray-50 hover:bg-gray-50"
-                        >
-                          <td className="py-2 font-medium">{s.name}</td>
-                          <td className="py-2 text-gray-500">{s.indexNo}</td>
-                          <td className="py-2">
-                            <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-semibold">
-                              Grade {s.grade}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Staff list */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                  <h2 className="font-extrabold text-gray-700 mb-4 flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-blue-600" /> Staff
-                    Members
-                  </h2>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                        <th className="pb-2">Name</th>
-                        <th className="pb-2">Subject</th>
-                        <th className="pb-2">Grade</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staff.slice(0, 4).map((s) => (
-                        <tr
-                          key={s.id}
-                          className="border-b border-gray-50 hover:bg-gray-50"
-                        >
-                          <td className="py-2 font-medium">{s.name}</td>
-                          <td className="py-2 text-gray-500">{s.subject}</td>
-                          <td className="py-2">
-                            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full font-semibold">
-                              Grade {s.grade}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── STUDENTS TAB ── */}
+        <div className="flex-1 p-8 space-y-6">
+          {/* STUDENTS TAB */}
           {tab === "students" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">
-                  {filteredStudents.length} students found
+            <>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+                  Add New Student
                 </p>
-                <button
-                  onClick={() => {
-                    setStudentForm(blankStudent);
-                    setAddStudentOpen(true);
-                  }}
-                  className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow"
-                >
-                  <PlusCircle className="w-4 h-4" /> Add Student
-                </button>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                    <tr>
-                      <th className="px-6 py-3 text-left">Name</th>
-                      <th className="px-6 py-3 text-left">Index No.</th>
-                      <th className="px-6 py-3 text-left">Grade</th>
-                      <th className="px-6 py-3 text-left">Section</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStudents.map((s) => (
-                      <tr
-                        key={s.id}
-                        className="border-t border-gray-50 hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-3 font-semibold text-gray-800">
-                          {s.name}
-                        </td>
-                        <td className="px-6 py-3 text-gray-500">{s.indexNo}</td>
-                        <td className="px-6 py-3">
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-bold">
-                            Grade {s.grade}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-gray-500">{s.section}</td>
-                        <td className="px-6 py-3 text-right flex justify-end gap-2">
-                          <button
-                            onClick={() => openEditStudent(s)}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteStudent(s.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredStudents.length === 0 && (
-                  <p className="text-center text-gray-400 py-8 text-sm">
-                    No students found.
-                  </p>
+                {stuMsg && (
+                  <p className="mb-3 text-sm font-semibold">{stuMsg}</p>
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* ── STAFF TAB ── */}
-          {tab === "staff" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">
-                  {filteredStaff.length} staff members
-                </p>
-                <button
-                  onClick={() => {
-                    setStaffForm(blankStaff);
-                    setAddStaffOpen(true);
-                  }}
-                  className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow"
-                >
-                  <PlusCircle className="w-4 h-4" /> Add Staff
-                </button>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                    <tr>
-                      <th className="px-6 py-3 text-left">Name</th>
-                      <th className="px-6 py-3 text-left">Staff ID</th>
-                      <th className="px-6 py-3 text-left">Subject</th>
-                      <th className="px-6 py-3 text-left">Grade</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStaff.map((s) => (
-                      <tr
-                        key={s.id}
-                        className="border-t border-gray-50 hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-3 font-semibold text-gray-800">
-                          {s.name}
-                        </td>
-                        <td className="px-6 py-3 text-gray-500">{s.staffId}</td>
-                        <td className="px-6 py-3 text-gray-600">{s.subject}</td>
-                        <td className="px-6 py-3">
-                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full font-bold">
-                            Grade {s.grade}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-right flex justify-end gap-2">
-                          <button
-                            onClick={() => openEditStaff(s)}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteStaff(s.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredStaff.length === 0 && (
-                  <p className="text-center text-gray-400 py-8 text-sm">
-                    No staff found.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── RESULTS TAB ── */}
-          {tab === "results" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-              <h2 className="font-extrabold text-gray-700 mb-2">
-                Results Overview
-              </h2>
-              <p className="text-sm text-gray-400 mb-6">
-                View all student results by grade and term.
-              </p>
-              <div className="grid grid-cols-3 gap-4">
-                {GRADES.map((g) => (
-                  <div
-                    key={g}
-                    className="border border-gray-100 rounded-xl p-4 hover:border-green-300 hover:bg-green-50 cursor-pointer transition"
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <input
+                    placeholder="Index No"
+                    value={newStudent.indexNo}
+                    onChange={(e) =>
+                      setNewStudent({ ...newStudent, indexNo: e.target.value })
+                    }
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <input
+                    placeholder="Full Name"
+                    value={newStudent.name}
+                    onChange={(e) =>
+                      setNewStudent({ ...newStudent, name: e.target.value })
+                    }
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <select
+                    value={newStudent.grade}
+                    onChange={(e) =>
+                      setNewStudent({ ...newStudent, grade: e.target.value })
+                    }
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
-                    <p className="font-bold text-gray-700">Grade {g}</p>
-                    <p className="text-xs text-gray-400">
-                      {SUBJECTS_BY_GRADE[g]?.length} subjects
-                    </p>
-                  </div>
-                ))}
+                    {GRADES.map((g) => (
+                      <option key={g} value={g}>
+                        Grade {g}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={addStudent}
+                    className="flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition"
+                  >
+                    <Plus className="w-4 h-4" /> Add Student
+                  </button>
+                </div>
               </div>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <p className="font-extrabold text-gray-700 text-sm">
+                    All Students ({students.length})
+                  </p>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
+                    <tr>
+                      <th className="px-6 py-3 text-left">#</th>
+                      <th className="px-6 py-3 text-left">Index No</th>
+                      <th className="px-6 py-3 text-left">Name</th>
+                      <th className="px-6 py-3 text-left">Grade</th>
+                      <th className="px-6 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="text-center py-8 text-gray-400 text-sm"
+                        >
+                          No students yet. Add one above.
+                        </td>
+                      </tr>
+                    )}
+                    {students.map((s, i) => (
+                      <tr
+                        key={s._id}
+                        className="border-t border-gray-50 hover:bg-gray-50"
+                      >
+                        <td className="px-6 py-3 text-gray-400">{i + 1}</td>
+                        {editId === s._id ? (
+                          <>
+                            <td className="px-6 py-3">
+                              <input
+                                value={editData.indexNo}
+                                onChange={(e) =>
+                                  setEditData({
+                                    ...editData,
+                                    indexNo: e.target.value,
+                                  })
+                                }
+                                className="border rounded px-2 py-1 text-xs w-full"
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input
+                                value={editData.name}
+                                onChange={(e) =>
+                                  setEditData({
+                                    ...editData,
+                                    name: e.target.value,
+                                  })
+                                }
+                                className="border rounded px-2 py-1 text-xs w-full"
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <select
+                                value={editData.grade}
+                                onChange={(e) =>
+                                  setEditData({
+                                    ...editData,
+                                    grade: e.target.value,
+                                  })
+                                }
+                                className="border rounded px-2 py-1 text-xs w-full"
+                              >
+                                {GRADES.map((g) => (
+                                  <option key={g} value={g}>
+                                    Grade {g}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <div className="flex gap-2 justify-center">
+                                <button
+                                  onClick={saveEdit}
+                                  className="text-green-600 hover:text-green-800"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setEditId(null)}
+                                  className="text-gray-400 hover:text-gray-600"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-6 py-3 text-gray-500 text-xs">
+                              {s.indexNo}
+                            </td>
+                            <td className="px-6 py-3 font-semibold text-gray-800">
+                              {s.name}
+                            </td>
+                            <td className="px-6 py-3 text-gray-500">
+                              Grade {s.grade}
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <div className="flex gap-3 justify-center">
+                                <button
+                                  onClick={() => startEdit(s)}
+                                  className="text-blue-500 hover:text-blue-700"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteStudent(s._id)}
+                                  className="text-red-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* MARKS TAB */}
+          {tab === "marks" && (
+            <>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+                  Select Class
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                      Grade
+                    </label>
+                    <select
+                      value={selGrade}
+                      onChange={(e) => {
+                        setSelGrade(e.target.value);
+                        setSelSubject(
+                          SUBJECTS_BY_GRADE[e.target.value]?.[0] || "",
+                        );
+                      }}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {GRADES.map((g) => (
+                        <option key={g} value={g}>
+                          Grade {g}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                      Subject
+                    </label>
+                    <select
+                      value={selSubject}
+                      onChange={(e) => setSelSubject(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {(SUBJECTS_BY_GRADE[selGrade] || []).map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                      Term
+                    </label>
+                    <select
+                      value={selTerm}
+                      onChange={(e) => setSelTerm(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {TERMS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                      Year
+                    </label>
+                    <select
+                      value={selYear}
+                      onChange={(e) => setSelYear(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {YEARS.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                  <p className="font-extrabold text-gray-700 text-sm">
+                    Grade {selGrade} — {selSubject} — {selTerm} {selYear}
+                  </p>
+                  {markMsg && (
+                    <span className="text-sm font-semibold">{markMsg}</span>
+                  )}
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
+                    <tr>
+                      <th className="px-6 py-3 text-left">#</th>
+                      <th className="px-6 py-3 text-left">Name</th>
+                      <th className="px-6 py-3 text-left">Index No</th>
+                      <th className="px-6 py-3 text-center">Mark (0–100)</th>
+                      <th className="px-6 py-3 text-center">Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {markRows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="text-center py-8 text-gray-400 text-sm"
+                        >
+                          No students found for Grade {selGrade}. Add students
+                          first.
+                        </td>
+                      </tr>
+                    )}
+                    {markRows.map((r, i) => (
+                      <tr
+                        key={r.indexNo}
+                        className="border-t border-gray-50 hover:bg-gray-50"
+                      >
+                        <td className="px-6 py-3 text-gray-400">{i + 1}</td>
+                        <td className="px-6 py-3 font-semibold text-gray-800">
+                          {r.name}
+                        </td>
+                        <td className="px-6 py-3 text-gray-400 text-xs">
+                          {r.indexNo}
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={r.mark}
+                            onChange={(e) =>
+                              updateMark(r.indexNo, e.target.value)
+                            }
+                            placeholder="—"
+                            className="w-20 text-center border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 font-bold"
+                          />
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          {r.grade ? (
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-800">
+                              {r.grade}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    onClick={saveMarks}
+                    className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition shadow"
+                  >
+                    <Save className="w-4 h-4" /> Save Marks
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* REPORTS TAB */}
+          {tab === "reports" && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+                Search Student Report
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <input
+                  placeholder="Index Number"
+                  value={repIndex}
+                  onChange={(e) => setRepIndex(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <select
+                  value={repGrade}
+                  onChange={(e) => setRepGrade(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {GRADES.map((g) => (
+                    <option key={g} value={g}>
+                      Grade {g}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={repTerm}
+                  onChange={(e) => setRepTerm(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {TERMS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={repYear}
+                  onChange={(e) => setRepYear(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {YEARS.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={fetchReport}
+                className="bg-green-700 hover:bg-green-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition shadow mb-6"
+              >
+                Search Report
+              </button>
+              {repErr && <p className="text-red-500 text-sm mb-4">{repErr}</p>}
+              {report && (
+                <div className="border border-gray-100 rounded-2xl p-6">
+                  <p className="font-bold text-lg text-gray-800 mb-1">
+                    {report.name}
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Index: {report.indexNo} · Grade {report.grade} ·{" "}
+                    {report.term} {report.year}
+                  </p>
+                  <table className="w-full text-sm border border-gray-200 rounded-xl overflow-hidden">
+                    <thead className="bg-green-700 text-white">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Subject</th>
+                        <th className="px-4 py-2 text-center">Mark</th>
+                        <th className="px-4 py-2 text-center">Grade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.subjects.map((s: any) => (
+                        <tr
+                          key={s.subject}
+                          className="border-t border-gray-100 text-center"
+                        >
+                          <td className="px-4 py-2 text-left">{s.subject}</td>
+                          <td className="px-4 py-2">{s.mark}</td>
+                          <td className="px-4 py-2 font-bold">{s.grade}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
-          {/* ── SETTINGS TAB ── */}
-          {tab === "settings" && (
-            <div className="max-w-lg space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-                <h2 className="font-extrabold text-gray-700">
-                  School Settings
-                </h2>
-                {[
-                  { label: "School Name", value: "Al Akeel MMV" },
-                  { label: "Location", value: "Kotiyakumbura, Kegalle" },
-                  { label: "Email", value: "contact@alakeelmmv.com" },
-                  { label: "Phone", value: "0352289099" },
-                ].map((f) => (
-                  <div key={f.label}>
-                    <label className="block text-xs text-gray-400 font-semibold mb-1">
-                      {f.label}
-                    </label>
-                    <input
-                      defaultValue={f.value}
-                      className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
+          {/* NEWS TAB */}
+          {tab === "news" && (
+            <>
+              {/* Add / Edit News Form */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    {newsEditId ? "Edit News" : "Add New News"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowNewsForm(!showNewsForm);
+                      setNewsEditId(null);
+                      setNewsForm({
+                        title: "",
+                        date: "",
+                        summary: "",
+                        image: "",
+                        points: "",
+                      });
+                    }}
+                    className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition"
+                  >
+                    <Plus className="w-4 h-4" />{" "}
+                    {showNewsForm ? "Cancel" : "Add News"}
+                  </button>
+                </div>
+
+                {newsMsg && (
+                  <p className="mb-3 text-sm font-semibold">{newsMsg}</p>
+                )}
+
+                {showNewsForm && (
+                  <div className="space-y-4 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                          Title *
+                        </label>
+                        <input
+                          placeholder="News title"
+                          value={newsForm.title}
+                          onChange={(e) =>
+                            setNewsForm({ ...newsForm, title: e.target.value })
+                          }
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                          Date
+                        </label>
+                        <input
+                          placeholder="e.g. 2025 January 15"
+                          value={newsForm.date}
+                          onChange={(e) =>
+                            setNewsForm({ ...newsForm, date: e.target.value })
+                          }
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                        Image Path (optional)
+                      </label>
+                      <input
+                        placeholder="e.g. /images/news1.jpg"
+                        value={newsForm.image}
+                        onChange={(e) =>
+                          setNewsForm({ ...newsForm, image: e.target.value })
+                        }
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                        Summary *
+                      </label>
+                      <textarea
+                        placeholder="News summary..."
+                        value={newsForm.summary}
+                        rows={3}
+                        onChange={(e) =>
+                          setNewsForm({ ...newsForm, summary: e.target.value })
+                        }
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1 font-semibold">
+                        Points (one per line)
+                      </label>
+                      <textarea
+                        placeholder="Point 1&#10;Point 2&#10;Point 3"
+                        value={newsForm.points}
+                        rows={4}
+                        onChange={(e) =>
+                          setNewsForm({ ...newsForm, points: e.target.value })
+                        }
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <button
+                      onClick={saveNews}
+                      className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition shadow"
+                    >
+                      <Save className="w-4 h-4" />{" "}
+                      {newsEditId ? "Update News" : "Save News"}
+                    </button>
                   </div>
-                ))}
-                <button className="bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-green-800 transition flex items-center gap-2">
-                  <Check className="w-4 h-4" /> Save Changes
-                </button>
+                )}
               </div>
-            </div>
+
+              {/* News List */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <p className="font-extrabold text-gray-700 text-sm">
+                    All News ({newsList.length})
+                  </p>
+                </div>
+                {newsList.length === 0 && (
+                  <p className="text-center py-8 text-gray-400 text-sm">
+                    No news yet. Add one above.
+                  </p>
+                )}
+                <div className="divide-y divide-gray-50">
+                  {newsList.map((n, i) => (
+                    <div
+                      key={n._id}
+                      className="px-6 py-5 hover:bg-gray-50 flex items-start justify-between gap-4"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">
+                            {n.date}
+                          </span>
+                        </div>
+                        <p className="font-bold text-gray-800 text-sm mb-1">
+                          {n.title}
+                        </p>
+                        <p className="text-xs text-gray-500 mb-2">
+                          {n.summary}
+                        </p>
+                        {n.points.length > 0 && (
+                          <ul className="space-y-0.5">
+                            {n.points.map((p, pi) => (
+                              <li
+                                key={pi}
+                                className="text-xs text-gray-600 flex gap-1"
+                              >
+                                <span className="text-green-600">✔</span>
+                                {p}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => editNews(n)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteNews(n._id)}
+                          className="text-red-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </main>
-
-      {/* ── ADD / EDIT STUDENT MODAL ── */}
-      {addStudentOpen && (
-        <Modal
-          title={editStudent ? "Edit Student" : "Add New Student"}
-          onClose={() => {
-            setAddStudentOpen(false);
-            setEditStudent(null);
-          }}
-        >
-          <div className="space-y-4">
-            {[
-              {
-                label: "Full Name",
-                key: "name",
-                type: "text",
-                ph: "e.g. Ahmed Rilwan",
-              },
-              {
-                label: "Index Number",
-                key: "indexNo",
-                type: "text",
-                ph: "e.g. 2025001",
-              },
-              { label: "Section", key: "section", type: "text", ph: "e.g. A" },
-            ].map((f) => (
-              <div key={f.key}>
-                <label className="block text-xs text-gray-500 font-semibold mb-1">
-                  {f.label}
-                </label>
-                <input
-                  type={f.type}
-                  placeholder={f.ph}
-                  value={(studentForm as any)[f.key]}
-                  onChange={(e) =>
-                    setStudentForm({ ...studentForm, [f.key]: e.target.value })
-                  }
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="block text-xs text-gray-500 font-semibold mb-1">
-                Grade
-              </label>
-              <select
-                value={studentForm.grade}
-                onChange={(e) =>
-                  setStudentForm({ ...studentForm, grade: e.target.value })
-                }
-                className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {GRADES.map((g) => (
-                  <option key={g} value={g}>
-                    Grade {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={saveStudent}
-                className="flex-1 bg-green-700 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-green-800 transition"
-              >
-                {editStudent ? "Update" : "Add Student"}
-              </button>
-              <button
-                onClick={() => {
-                  setAddStudentOpen(false);
-                  setEditStudent(null);
-                }}
-                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── ADD / EDIT STAFF MODAL ── */}
-      {addStaffOpen && (
-        <Modal
-          title={editStaff ? "Edit Staff" : "Add Staff Member"}
-          onClose={() => {
-            setAddStaffOpen(false);
-            setEditStaff(null);
-          }}
-        >
-          <div className="space-y-4">
-            {[
-              { label: "Full Name", key: "name", ph: "e.g. Mr. Ahmed" },
-              { label: "Staff ID", key: "staffId", ph: "e.g. ST004" },
-            ].map((f) => (
-              <div key={f.key}>
-                <label className="block text-xs text-gray-500 font-semibold mb-1">
-                  {f.label}
-                </label>
-                <input
-                  type="text"
-                  placeholder={f.ph}
-                  value={(staffForm as any)[f.key]}
-                  onChange={(e) =>
-                    setStaffForm({ ...staffForm, [f.key]: e.target.value })
-                  }
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="block text-xs text-gray-500 font-semibold mb-1">
-                Grade
-              </label>
-              <select
-                value={staffForm.grade}
-                onChange={(e) =>
-                  setStaffForm({
-                    ...staffForm,
-                    grade: e.target.value,
-                    subject: "",
-                  })
-                }
-                className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {GRADES.map((g) => (
-                  <option key={g} value={g}>
-                    Grade {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 font-semibold mb-1">
-                Subject
-              </label>
-              <select
-                value={staffForm.subject}
-                onChange={(e) =>
-                  setStaffForm({ ...staffForm, subject: e.target.value })
-                }
-                className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Subject</option>
-                {(SUBJECTS_BY_GRADE[staffForm.grade] || []).map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={saveStaff}
-                className="flex-1 bg-blue-700 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-blue-800 transition"
-              >
-                {editStaff ? "Update" : "Add Staff"}
-              </button>
-              <button
-                onClick={() => {
-                  setAddStaffOpen(false);
-                  setEditStaff(null);
-                }}
-                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ export default function ProgressReportPage() {
   });
 
   const [showResult, setShowResult] = useState(false);
+
   const [report, setReport] = useState<{
     name: string;
     indexNo: string;
@@ -20,6 +21,7 @@ export default function ProgressReportPage() {
     year: string;
     subjects: Array<{ subject: string; mark: number; grade: string }>;
   } | null>(null);
+
   const [searchError, setSearchError] = useState("");
 
   // Handle input change
@@ -27,72 +29,27 @@ export default function ProgressReportPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const loadSavedReport = () => {
-    if (typeof window === "undefined") return null;
-
-    const studentStorage = localStorage.getItem("school-students");
-    const marksStorage = localStorage.getItem("school-marks");
-    const students = studentStorage ? JSON.parse(studentStorage) : [];
-    const marksObj = marksStorage ? JSON.parse(marksStorage) : {};
+  // ✅ UPDATED - Load report from MongoDB API
+  const loadSavedReport = async () => {
     const gradeNumber = form.grade.replace("Grade ", "");
-    const matchingSubjects: Array<{
-      subject: string;
-      mark: number;
-      grade: string;
-      name: string;
-      indexNo: string;
-    }> = [];
 
-    Object.entries(marksObj).forEach(([key, entries]: any) => {
-      const [storedGrade, subject, storedTerm, storedYear] = key.split("|");
-      if (
-        storedGrade === gradeNumber &&
-        storedTerm === form.term &&
-        storedYear === form.year
-      ) {
-        entries.forEach((entry: any) => {
-          if (entry.indexNo === form.index) {
-            matchingSubjects.push({
-              subject,
-              mark: entry.mark,
-              grade: entry.grade,
-              name: entry.name,
-              indexNo: entry.indexNo,
-            });
-          }
-        });
-      }
-    });
-
-    if (matchingSubjects.length === 0) {
-      return null;
-    }
-
-    const student = students.find(
-      (item: any) =>
-        String(item.indexNo) === form.index &&
-        String(item.grade) === gradeNumber,
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/marks/report?indexNo=${form.index}&grade=${gradeNumber}&term=${form.term}&year=${form.year}`
     );
 
-    return {
-      name: student?.name || matchingSubjects[0].name || "Student",
-      indexNo: form.index,
-      grade: gradeNumber,
-      term: form.term,
-      year: form.year,
-      subjects: matchingSubjects.map((item) => ({
-        subject: item.subject,
-        mark: item.mark,
-        grade: item.grade,
-      })),
-    };
+    if (res.ok) return await res.json();
+
+    return null;
   };
 
-  // Submit form
-  const handleSubmit = (e: any) => {
+  // ✅ UPDATED Submit
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
+
     setSearchError("");
-    const result = loadSavedReport();
+
+    const result = await loadSavedReport();
+
     if (result) {
       setReport(result);
       setShowResult(true);
@@ -100,17 +57,16 @@ export default function ProgressReportPage() {
       setReport(null);
       setShowResult(true);
       setSearchError(
-        "No result found. Please make sure the index, grade, term, and year are correct.",
+        "No result found. Please check index, grade, term and year."
       );
     }
   };
 
-  // ✅ FINAL FIXED PDF FUNCTION (NO ERRORS)
+  // PDF Download
   const downloadPDF = async () => {
     const element = document.getElementById("result-section");
     if (!element) return;
 
-    // ✅ FIX: proper dynamic import
     const html2pdfModule = await import("html2pdf.js");
     const html2pdf = html2pdfModule.default || html2pdfModule;
 
@@ -136,17 +92,20 @@ export default function ProgressReportPage() {
 
   return (
     <div>
+      {/* Banner */}
       <div className="relative w-full h-105">
         <img
           src="/2024/02/banner-4-1.jpg"
           alt="building"
           className="absolute inset-0 w-full object-cover h-105"
         />
-        {/* Dark Overlay */}
+
         <div className="absolute inset-0 bg-black/60"></div>
 
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-white">
-          <h1 className="text-4xl font-bold mb-3">StudentProgressReport</h1>
+          <h1 className="text-4xl font-bold mb-3">
+            Student Progress Report
+          </h1>
 
           <p className="text-lg font-semibold">
             <Link href="/" className="hover:underline">
@@ -155,20 +114,22 @@ export default function ProgressReportPage() {
           </p>
         </div>
       </div>
+
+      {/* Main */}
       <div className="min-h-screen bg-gray-100 py-16 px-4">
-        {/* TITLE */}
         <h1 className="text-3xl md:text-4xl font-bold text-center text-green-900 mb-10">
           ONLINE PROGRESS REPORT
         </h1>
 
-        {/* FORM */}
+        {/* Form */}
         <div className="max-w-3xl mx-auto border-4 border-green-700 rounded-xl p-6 bg-white shadow">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* INDEX */}
+            {/* Index */}
             <div>
               <label className="block mb-1 text-sm font-medium">
                 Index Number
               </label>
+
               <input
                 type="text"
                 name="index"
@@ -180,9 +141,12 @@ export default function ProgressReportPage() {
               />
             </div>
 
-            {/* GRADE */}
+            {/* Grade */}
             <div>
-              <label className="block mb-1 text-sm font-medium">Grade</label>
+              <label className="block mb-1 text-sm font-medium">
+                Grade
+              </label>
+
               <select
                 name="grade"
                 value={form.grade}
@@ -191,6 +155,7 @@ export default function ProgressReportPage() {
                 className="w-full border rounded px-4 py-2"
               >
                 <option value="">Select Grade</option>
+
                 {[...Array(13)].map((_, i) => (
                   <option key={i} value={`Grade ${i + 1}`}>
                     Grade {i + 1}
@@ -199,9 +164,12 @@ export default function ProgressReportPage() {
               </select>
             </div>
 
-            {/* TERM */}
+            {/* Term */}
             <div>
-              <label className="block mb-1 text-sm font-medium">Term</label>
+              <label className="block mb-1 text-sm font-medium">
+                Term
+              </label>
+
               <select
                 name="term"
                 value={form.term}
@@ -216,9 +184,12 @@ export default function ProgressReportPage() {
               </select>
             </div>
 
-            {/* YEAR */}
+            {/* Year */}
             <div>
-              <label className="block mb-1 text-sm font-medium">Year</label>
+              <label className="block mb-1 text-sm font-medium">
+                Year
+              </label>
+
               <select
                 name="year"
                 value={form.year}
@@ -231,7 +202,7 @@ export default function ProgressReportPage() {
               </select>
             </div>
 
-            {/* BUTTON */}
+            {/* Button */}
             <button
               type="submit"
               className="bg-green-700 text-white px-6 py-2 rounded hover:bg-green-800 transition"
@@ -241,7 +212,7 @@ export default function ProgressReportPage() {
           </form>
         </div>
 
-        {/* RESULT */}
+        {/* Results */}
         {showResult && (
           <div className="max-w-4xl mx-auto mt-10">
             {searchError ? (
@@ -251,24 +222,33 @@ export default function ProgressReportPage() {
             ) : report ? (
               <div
                 id="result-section"
-                style={{ backgroundColor: "#ffffff", color: "#000000" }}
+                style={{
+                  backgroundColor: "#ffffff",
+                  color: "#000000",
+                }}
                 className="p-6 rounded shadow"
               >
-                <h2 className="text-xl font-bold mb-4">Student Result</h2>
+                <h2 className="text-xl font-bold mb-4">
+                  Student Result
+                </h2>
 
                 <div className="mb-4 text-sm">
                   <p>
                     <strong>Name:</strong> {report.name}
                   </p>
+
                   <p>
                     <strong>Index:</strong> {report.indexNo}
                   </p>
+
                   <p>
                     <strong>Grade:</strong> Grade {report.grade}
                   </p>
+
                   <p>
                     <strong>Term:</strong> {report.term}
                   </p>
+
                   <p>
                     <strong>Year:</strong> {report.year}
                   </p>
@@ -276,23 +256,38 @@ export default function ProgressReportPage() {
 
                 <table className="w-full border border-black">
                   <thead
-                    style={{ backgroundColor: "#15803d", color: "#ffffff" }}
+                    style={{
+                      backgroundColor: "#15803d",
+                      color: "#ffffff",
+                    }}
                   >
                     <tr>
-                      <th className="p-2 border border-black">Subject</th>
-                      <th className="p-2 border border-black">Marks</th>
-                      <th className="p-2 border border-black">Grade</th>
+                      <th className="p-2 border border-black">
+                        Subject
+                      </th>
+                      <th className="p-2 border border-black">
+                        Marks
+                      </th>
+                      <th className="p-2 border border-black">
+                        Grade
+                      </th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {report.subjects.map((subject) => (
-                      <tr key={subject.subject} className="text-center">
+                      <tr
+                        key={subject.subject}
+                        className="text-center"
+                      >
                         <td className="border border-black p-2">
                           {subject.subject}
                         </td>
+
                         <td className="border border-black p-2">
                           {subject.mark}
                         </td>
+
                         <td className="border border-black p-2">
                           {subject.grade}
                         </td>
