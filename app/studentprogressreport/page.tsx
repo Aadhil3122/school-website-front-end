@@ -34,7 +34,7 @@ export default function ProgressReportPage() {
     const gradeNumber = form.grade.replace("Grade ", "");
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/marks/report?indexNo=${form.index}&grade=${gradeNumber}&term=${form.term}&year=${form.year}`
+      `${process.env.NEXT_PUBLIC_API_URL}/api/marks/report?indexNo=${form.index}&grade=${gradeNumber}&term=${form.term}&year=${form.year}`,
     );
 
     if (res.ok) return await res.json();
@@ -57,37 +57,71 @@ export default function ProgressReportPage() {
       setReport(null);
       setShowResult(true);
       setSearchError(
-        "No result found. Please check index, grade, term and year."
+        "No result found. Please check index, grade, term and year.",
       );
     }
   };
 
   // PDF Download
   const downloadPDF = async () => {
-    const element = document.getElementById("result-section");
-    if (!element) return;
+    try {
+      const element = document.getElementById("result-section");
+      if (!element) {
+        alert("Error: Cannot find report to download");
+        return;
+      }
 
-    const html2pdfModule = await import("html2pdf.js");
-    const html2pdf = html2pdfModule.default || html2pdfModule;
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default || html2pdfModule;
 
-    html2pdf()
-      .from(element)
-      .set({
-        margin: 10,
-        filename: `${form.index || "student"}-result.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "a4",
-          orientation: "portrait",
-        },
-      })
-      .save();
+      // Clone element to avoid modifying original
+      const cloneElement = element.cloneNode(true) as HTMLElement;
+
+      // Remove problematic Tailwind classes that use unsupported CSS functions
+      cloneElement.querySelectorAll("*").forEach((el: any) => {
+        // Clear class that might have lab() colors
+        el.classList.remove(
+          "text-red-600",
+          "text-red-700",
+          "text-red-800",
+          "bg-red-50",
+        );
+        // Set inline styles instead
+        if (el.tagName === "BUTTON") {
+          el.style.backgroundColor = "#1f2937";
+          el.style.color = "#ffffff";
+          el.style.padding = "8px 20px";
+          el.style.borderRadius = "4px";
+          el.style.cursor = "pointer";
+          el.style.display = "none"; // Hide button in PDF
+        }
+      });
+
+      html2pdf()
+        .from(cloneElement)
+        .set({
+          margin: 10,
+          filename: `${form.index || "student"}-result.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+            allowTaint: true,
+            removeContainer: true,
+            logging: false,
+          },
+          jsPDF: {
+            unit: "mm",
+            format: "a4",
+            orientation: "portrait",
+          },
+        })
+        .save();
+    } catch (error) {
+      console.error("PDF download error:", error);
+      alert("Error generating PDF. Please try again.");
+    }
   };
 
   return (
@@ -103,9 +137,7 @@ export default function ProgressReportPage() {
         <div className="absolute inset-0 bg-black/60"></div>
 
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-white">
-          <h1 className="text-4xl font-bold mb-3">
-            Student Progress Report
-          </h1>
+          <h1 className="text-4xl font-bold mb-3">Student Progress Report</h1>
 
           <p className="text-lg font-semibold">
             <Link href="/" className="hover:underline">
@@ -143,9 +175,7 @@ export default function ProgressReportPage() {
 
             {/* Grade */}
             <div>
-              <label className="block mb-1 text-sm font-medium">
-                Grade
-              </label>
+              <label className="block mb-1 text-sm font-medium">Grade</label>
 
               <select
                 name="grade"
@@ -166,9 +196,7 @@ export default function ProgressReportPage() {
 
             {/* Term */}
             <div>
-              <label className="block mb-1 text-sm font-medium">
-                Term
-              </label>
+              <label className="block mb-1 text-sm font-medium">Term</label>
 
               <select
                 name="term"
@@ -186,9 +214,7 @@ export default function ProgressReportPage() {
 
             {/* Year */}
             <div>
-              <label className="block mb-1 text-sm font-medium">
-                Year
-              </label>
+              <label className="block mb-1 text-sm font-medium">Year</label>
 
               <select
                 name="year"
@@ -216,7 +242,16 @@ export default function ProgressReportPage() {
         {showResult && (
           <div className="max-w-4xl mx-auto mt-10">
             {searchError ? (
-              <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 p-5">
+              <div
+                style={{
+                  borderRadius: "12px",
+                  backgroundColor: "#fef2f2",
+                  borderColor: "#fecaca",
+                  borderWidth: "1px",
+                  color: "#b91c1c",
+                  padding: "20px",
+                }}
+              >
                 {searchError}
               </div>
             ) : report ? (
@@ -228,9 +263,7 @@ export default function ProgressReportPage() {
                 }}
                 className="p-6 rounded shadow"
               >
-                <h2 className="text-xl font-bold mb-4">
-                  Student Result
-                </h2>
+                <h2 className="text-xl font-bold mb-4">Student Result</h2>
 
                 <div className="mb-4 text-sm">
                   <p>
@@ -262,24 +295,15 @@ export default function ProgressReportPage() {
                     }}
                   >
                     <tr>
-                      <th className="p-2 border border-black">
-                        Subject
-                      </th>
-                      <th className="p-2 border border-black">
-                        Marks
-                      </th>
-                      <th className="p-2 border border-black">
-                        Grade
-                      </th>
+                      <th className="p-2 border border-black">Subject</th>
+                      <th className="p-2 border border-black">Marks</th>
+                      <th className="p-2 border border-black">Grade</th>
                     </tr>
                   </thead>
 
                   <tbody>
                     {report.subjects.map((subject) => (
-                      <tr
-                        key={subject.subject}
-                        className="text-center"
-                      >
+                      <tr key={subject.subject} className="text-center">
                         <td className="border border-black p-2">
                           {subject.subject}
                         </td>
