@@ -3,7 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, ChevronDown, ShieldCheck, UserCog } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  ShieldCheck,
+  UserCog,
+  Menu,
+  X,
+} from "lucide-react";
 import { useState, useRef, useEffect, FormEvent } from "react";
 
 export default function Navbar() {
@@ -11,6 +18,7 @@ export default function Navbar() {
   const [portalOpen, setPortalOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -66,7 +74,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="w-full bg-linear-to-r from-[#013512] to-[#79db7e] text-white px-8 py-4 flex items-center justify-between">
+    <nav className="relative w-full bg-linear-to-r from-[#013512] to-[#79db7e] text-white px-8 py-4 flex items-center justify-between">
       {/* Logo */}
       <div className="flex items-center gap-3">
         <Image
@@ -78,6 +86,15 @@ export default function Navbar() {
         />
         <span className="font-bold text-lg">Al Akeel MMV</span>
       </div>
+
+      {/* Mobile menu button */}
+      <button
+        type="button"
+        onClick={() => setMenuOpen((open) => !open)}
+        className="md:hidden text-white p-2 rounded-full hover:bg-white/10 transition"
+      >
+        {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
 
       {/* Menu */}
       <ul className="hidden md:flex gap-6 font-extrabold justify-center">
@@ -110,6 +127,56 @@ export default function Navbar() {
           </Link>
         </li>
       </ul>
+
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div className="absolute left-0 right-0 top-full z-50 bg-[#013512] border-t border-white/10 md:hidden">
+          <div className="flex flex-col px-6 py-4 space-y-3">
+            <Link
+              href="/"
+              onClick={() => setMenuOpen(false)}
+              className="text-white font-semibold hover:text-green-300 transition"
+            >
+              HOME
+            </Link>
+            <Link
+              href="/aboutus"
+              onClick={() => setMenuOpen(false)}
+              className="text-white font-semibold hover:text-green-300 transition"
+            >
+              ABOUT US
+            </Link>
+            <Link
+              href="/studentprogressreport"
+              onClick={() => setMenuOpen(false)}
+              className="text-white font-semibold hover:text-green-300 transition"
+            >
+              STUDENT PROGRESS REPORT
+            </Link>
+            <Link
+              href="/contact"
+              onClick={() => setMenuOpen(false)}
+              className="text-white font-semibold hover:text-green-300 transition"
+            >
+              CONTACTS
+            </Link>
+            <Link
+              href="/news"
+              onClick={() => setMenuOpen(false)}
+              className="text-white font-semibold hover:text-green-300 transition"
+            >
+              NEWS
+            </Link>
+            <Link
+              href="/contact"
+              onClick={() => setMenuOpen(false)}
+              className="text-white border border-red-500 rounded-full px-4 py-2 text-center font-bold hover:bg-red-500 transition"
+            >
+              CONTACT US
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Right side actions */}
       <div className="flex items-center gap-4">

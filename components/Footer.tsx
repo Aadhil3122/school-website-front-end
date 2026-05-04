@@ -35,32 +35,68 @@ export default function Footer() {
         <div>
           <h3 className="font-bold text-lg mb-4">QUICK LINKS</h3>
           <ul className="space-y-3">
-            <li className="hover:text-yellow-400 cursor-pointer">About Us</li>
-            <li className="hover:text-yellow-400 cursor-pointer">
-              Testimonials
-            </li>
-            <li className="hover:text-yellow-400 cursor-pointer">
-              Student Progress Report
-            </li>
-            <li className="hover:text-yellow-400 cursor-pointer">Contact Us</li>
-          </ul>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg mb-4">TOOLS AND LINKS</h3>
-          <ul className="space-y-3">
-            <li className="hover:text-yellow-400 cursor-pointer">About Us</li>
-            <li className="hover:text-yellow-400 cursor-pointer">
-              Testimonials
+            <li>
+              <Link
+                href="/aboutus"
+                className="hover:text-yellow-400 transition"
+              >
+                About Us
+              </Link>
             </li>
             <li>
-              <Link href="/studentprogressreport" className="hover:text-yellow-400 cursor-pointer">
+              <Link
+                href="/studentprogressreport"
+                className="hover:text-yellow-400 transition"
+              >
                 Student Progress Report
               </Link>
             </li>
             <li>
-              <Link href="/contact" className="hover:text-yellow-400 cursor-pointer">
+              <Link
+                href="/contact"
+                className="hover:text-yellow-400 transition"
+              >
                 Contact Us
+              </Link>
+            </li>
+            <li>
+              <Link href="/news" className="hover:text-yellow-400 transition">
+                Latest News
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg mb-4">STUDENT LINKS</h3>
+          <ul className="space-y-3">
+            <li>
+              <Link
+                href="/studentprogressreport"
+                className="hover:text-yellow-400 transition"
+              >
+                Progress Reports
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/contact"
+                className="hover:text-yellow-400 transition"
+              >
+                Contact Us
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/aboutus"
+                className="hover:text-yellow-400 transition"
+              >
+                About School
+              </Link>
+            </li>
+            <li>
+              <Link href="/news" className="hover:text-yellow-400 transition">
+                News & Updates
               </Link>
             </li>
           </ul>
@@ -81,7 +117,9 @@ export default function Footer() {
           {/* Email */}
           <div className="flex items-center gap-3 mb-4">
             <FaEnvelope className="text-yellow-500  hover:bg-green-400 w-5 h-5" />
-            <p className="text-sm  hover:bg-yellow-400">contact@alakeelmmv.com</p>
+            <p className="text-sm  hover:bg-yellow-400">
+              contact@alakeelmmv.com
+            </p>
           </div>
 
           {/* Phone */}
@@ -107,18 +145,30 @@ export default function Footer() {
         </div>
 
         <div className="flex gap-4 left-4">
-          <div className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400">
+          <Link
+            href="#"
+            className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400 transition"
+          >
             <FaFacebookF size={16} />
-          </div>
-          <div className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400">
+          </Link>
+          <Link
+            href="#"
+            className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400 transition"
+          >
             <FaInstagram size={16} />
-          </div>
-          <div className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400">
+          </Link>
+          <Link
+            href="#"
+            className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400 transition"
+          >
             <FaTwitter size={16} />
-          </div>
-          <div className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400">
+          </Link>
+          <Link
+            href="#"
+            className="bg-white text-green-900 p-3 rounded-full hover:bg-yellow-400 transition"
+          >
             <FaYoutube size={16} />
-          </div>
+          </Link>
         </div>
       </div>
     </footer>
